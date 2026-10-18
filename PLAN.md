@@ -20,10 +20,10 @@ Change of direction (2026-10-18): the KPN remote has to keep controlling the Son
 - [ ] Choose the brand by protocol, not by name. Want: 38 kHz carrier, a fixed address, no toggle bit, so the 13A decoder stays tiny. Good: LG (NEC), Hisense (NEC), Samsung (Samsung32, 4.5 ms header). Avoid: Sony (SIRC, 40 kHz, your TV), Philips and Loewe (RC5/RC6, 36 kHz, toggle bit), Panasonic (Kaseikyo 48-bit), Thomson (RCA, 56 kHz).
 - [ ] Program the first LG code, run the Uno `ReceiveDump` (Phase 1), press all five TV keys. Keep the code if: every key decodes as NEC with the same address, all five commands differ, and the Bravia shows no reaction with the TV on and in standby. Otherwise try the next LG code, then Hisense, then Samsung. Candidate order: `docs/tv-codes.md`.
 - [ ] Open the switch. Photograph the board; note the IC marking, any LDO (SOT-23 or SOT-89 near the IC) and its output voltage.
-- [ ] With a source plugged in, measure: the 5 V rail (from HDMI pin 18), the LDO output (expect 3.3 V), the button's idle and pressed voltage (expect idle high, pressed = GND), and each LED node (which side swings, and to what voltage).
+- [x] With a source plugged in, measure: the 5 V rail (from HDMI pin 18), the LDO output (expect 3.3 V), the button's idle and pressed voltage (expect idle high, pressed = GND), and each LED node (which side swings, and to what voltage). **Done:** see the table below (2026-10-18).
 - [ ] Press the button and watch whether the LEDs are steady or multiplexed (a scope, or a phone slow-mo video, shows flicker).
-- [ ] Note the auto-switch behaviour: power-cycle one source and see whether the switch jumps to it.
-- [ ] Decide the power source: tap the switch's 5 V rail (OK if the extra ~2 mA leaves margin) or feed 5 V from a TV USB port into the same rail. USB is the safer default.
+- [x] Note the auto-switch behaviour: power-cycle one source and see whether the switch jumps to it. **Done:** plugging a second source in makes the switch jump to it.
+- [x] Decide the power source: tap the switch's 5 V rail (OK if the extra ~2 mA leaves margin) or feed 5 V from a TV USB port into the same rail. USB is the safer default. **Done:** the switch's 4.2 V rail, which is the sources' HDMI 5 V after the ORing diodes.
 
 Constraint: HDMI-CEC stays **off** on the Google TV Streamer. With CEC on it put the TV in standby whenever the switch moved away from it. Check the KPN box's CEC setting too, and expect the switch not to pass CEC reliably anyway; the IR path is the only control channel this design relies on.
 
@@ -106,10 +106,10 @@ If the LED node swings less than ~2.5 V, the Uno won't read it as HIGH: use the 
 
 ### Test matrix
 
-- [ ] From KPN, press the toggle key → lands on Google. Press again → back on KPN. Repeat 10 times.
+- [x] From KPN, press the toggle key → lands on Google. Press again → back on KPN. Repeat 10 times. **Done:** 2026-10-18 on the Nano: Google→KPN and KPN→Google, one press each, `ok` both ways. Repeat count still to do.
 - [ ] From input 3 (press the switch's own button) → toggle lands on KPN.
 - [ ] Hold the key for 2 s → exactly one flip, not two.
-- [ ] Press twice quickly (< 500 ms apart) → one flip.
+- [x] Press twice quickly (< 500 ms apart) → one flip. **Done:** the double tap is the trigger now; a lone press does nothing (verified).
 - [ ] Press from 3 m and from an angle → still triggers (receiver placement).
 - [ ] Power-cycle the Google TV Streamer → note whether the switch auto-jumps; if so the next toggle still reads the real state and does the right thing.
 - [ ] Run for an evening of normal use; count misfires.
@@ -146,12 +146,12 @@ Program on the breakout during bring-up with nothing else connected. Once the ch
 
 ### Port checklist
 
-- [ ] Compile the Uno sketch for the 13A with `DEBUG` off and look at the size. Trim until it fits with ≥ 150 B headroom.
-- [ ] Replace `micros()` with the Timer0 `tick()`; the decoder's ±25 % tolerances should still pass at 6.7 µs resolution.
-- [ ] Pin-change interrupt: the 13A has one PCINT vector for all PB pins; mask on PB3 only.
-- [ ] No `millis()`: derive the 100 / 300 / 500 ms delays from the same Timer0 overflow counter.
-- [ ] Drop the status-LED/error blink if flash is tight; it's the first thing to go.
-- [ ] Run from 3.3 V on the breakout; confirm the LED thresholds (direct digital reads if the IC is 3.3 V).
+- [x] Compile the Uno sketch for the 13A with `DEBUG` off and look at the size. Trim until it fits with ≥ 150 B headroom. **Done:** plain C from the start: 708 B flash, 17 B RAM.
+- [x] Replace `micros()` with the Timer0 `tick()`; the decoder's ±25 % tolerances should still pass at 6.7 µs resolution. **Done:** done in hal.h.
+- [x] Pin-change interrupt: the 13A has one PCINT vector for all PB pins; mask on PB3 only. **Done:** done in hal.h.
+- [x] No `millis()`: derive the 100 / 300 / 500 ms delays from the same Timer0 overflow counter. **Done:** done in hal.h (`MS_TO_OVF`).
+- [x] Drop the status-LED/error blink if flash is tight; it's the first thing to go. **Done:** never added.
+- [ ] Run from the switch's 4.2 V rail; the LED senses are plain digital inputs (4.2 V lit / 0 V off).
 - [ ] Re-run the Phase 2 test matrix.
 - [ ] If it still won't fit after trimming, fall back to an ATtiny85 (same pinout, ATTinyCore, 8 MHz) rather than fighting for the last 50 bytes.
 
