@@ -1,7 +1,15 @@
 # Phase 1: record the IR codes
 
-The recorder is the IRremote library's own `ReceiveDump` example. IRremote 4.7.1 is installed
-in `~/Documents/Arduino/libraries/IRremote`; nothing in it needs editing.
+Two recorders are available:
+
+- **The firmware's own probe build** (no IDE): `make -C firmware DEBUG=1 flash-uno`, then
+  `tio /dev/cu.usbserial-10` (115200). It prints `pin=<level> edges=<count>` once a second, a
+  `raw` line with the first 21 pulse pairs in microseconds after any activity (any protocol),
+  and `A=<addr> C=<cmd>` for each decoded frame of the configured protocol. A Sony frame shows
+  as `raw space,mark: ...,2400 600,600 600,1200 ...`; NEC as `raw mark,space: 9000,4500
+  560,560 560,1690 ...`. Build with `PROTO=nec` to decode NEC instead of SIRC.
+- **IRremote's `ReceiveDump` example** (names any protocol). IRremote 4.7.1 is installed in
+  `~/Documents/Arduino/libraries/IRremote`; nothing in it needs editing.
 
 ## Wiring (Nano clone)
 
@@ -33,11 +41,11 @@ if wanted, the box address into `BOX_ADDR`.
 
 | Key | Protocol | Address | Command | Repeat frame? | Action |
 | --- | --- | --- | --- | --- | --- |
-| Source |  |  |  |  | toggle KPN ⇄ Google |
-| TV power |  |  |  |  | ignore |
+| Mute |  |  |  |  | double tap = toggle KPN ⇄ Google |
+| Source |  |  |  |  | toggle if the TV ignores it |
+| TV power |  |  |  |  | toggle if the TV ignores it |
 | Vol+ |  |  |  |  | ignore |
 | Vol− |  |  |  |  | ignore |
-| Mute |  |  |  |  | ignore |
 | Box OK |  |  |  |  | → KPN, optional |
 | Box channel up |  |  |  |  | → KPN, optional |
 

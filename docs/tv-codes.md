@@ -9,9 +9,23 @@ TV lists; the C3 uses the same table).
 2. Enter the 3-digit code.
 3. Test with the Uno recorder (`recorder/README.md`), not with the TV.
 
-## Candidate order
+## Sony codes (current plan)
+
+The KPN remote must keep driving the Sony KDL-40ZX1's volume and mute, so the TV section
+takes a Sony code. Sony is SIRC: 40 kHz, 2.4 ms header, pulse-width bits, 12 bits for TVs
+(address 1; mute 20, vol+ 18, vol− 19, power 21, input 37), sent three times per press. The
+firmware decodes it with `IR_PROTOCOL IR_SIRC`.
+
+Try in the PDF's order and record every key with the probe: 534, 540, 539, 529, 295, 541,
+536, 167, 535, 294, 530, 441, 169, 533, 424, 419, 259, 185, 168, 542, 144, 852, 537, 531,
+297, 237, 231. Keep the first code where Vol+, Vol− and Mute work on the TV. Then note
+whether the TV reacts to Source and to Power: a key it ignores is the cleanest trigger. If
+every key works, the trigger is a double tap of Mute (`DOUBLE_TAP_MS` in config.h).
+
+## NEC candidate order (original plan, superseded)
 
 Chosen by protocol: NEC (38 kHz, fixed 16-bit address, no toggle bit) first, Samsung32 second.
+Builds with `make PROTO=nec`.
 
 | Order | Brand | Codes, in the PDF's order | Expected protocol |
 | --- | --- | --- | --- |

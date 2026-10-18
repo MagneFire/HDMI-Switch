@@ -12,7 +12,9 @@ The switch keeps its own button and LEDs; the MCU only adds a hand that presses 
 
 ## Phase 0 — Reconnaissance (multimeter only)
 
-Done when: the C3 remote's TV keys are programmed to a non-Sony code that the Bravia ignores and that decodes cleanly, and you have the switch's button polarity, LED node voltages and supply rail written down.
+Done when: the C3 remote's TV keys are programmed to a Sony code that drives the Bravia's volume and mute, the trigger is chosen, and you have the switch's button polarity, LED node voltages and supply rail written down.
+
+Change of direction (2026-10-18): the KPN remote has to keep controlling the Sony's volume and mute, and the Sony does not react to the LG code (so there is no CEC relay through the box). The TV section therefore stays on a Sony code, which the firmware decodes as SIRC (`IR_PROTOCOL IR_SIRC`). The trigger is either a key of the Sony code that the KDL-40ZX1 ignores (found by recording each code and watching the TV), or, with any fully working Sony code, a **double tap of Mute** within 600 ms (`DOUBLE_TAP_MS`): the TV mutes and unmutes, net nothing. The original NEC plan below is kept for reference and still builds with `make PROTO=nec`.
 
 - [ ] Trigger keys = the C3's TV section (TV power, vol+, vol−, mute, source), reprogrammed to a foreign brand so the Sony Bravia never reacts. The C3 uses the C2/D3 code lists; programming: hold STOP until the LED flashes red twice, enter the 3-digit code. You give up TV volume/power from the KPN remote; the Google TV remote or the Sony remote covers that.
 - [ ] Choose the brand by protocol, not by name. Want: 38 kHz carrier, a fixed address, no toggle bit, so the 13A decoder stays tiny. Good: LG (NEC), Hisense (NEC), Samsung (Samsung32, 4.5 ms header). Avoid: Sony (SIRC, 40 kHz, your TV), Philips and Loewe (RC5/RC6, 36 kHz, toggle bit), Panasonic (Kaseikyo 48-bit), Thomson (RCA, 56 kHz).
@@ -67,9 +69,10 @@ Done when: you have protocol, address and command for every trigger key, and you
 
 | Key | Protocol | Address | Command | Repeat frame? | Action |
 | --- | --- | --- | --- | --- | --- |
-| Source |  |  |  |  | toggle KPN ⇄ Google |
-| Mute, Vol+, Vol−, TV power |  |  |  |  | ignore |
-| Any box key |  |  |  |  | → KPN, optional |
+| Mute | SIRC? |  |  |  | double tap = toggle KPN ⇄ Google |
+| Source, TV power |  |  |  | TV reacts? | toggle if the TV ignores it, else ignore |
+| Vol+, Vol− |  |  |  |  | ignore |
+| Any box key |  |  |  |  | → KPN, optional (same protocol only) |
 
 ## Phase 2 — Uno prototype
 
