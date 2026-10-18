@@ -4,7 +4,9 @@
 #   make MCU=attiny13a        ATtiny13A (final)
 #   make size                 flash / RAM report for the chosen MCU
 #   make DEBUG=1              UART trace at 115200 (ATmega328P only)
-#   make PROTO_SAMSUNG=1      also accept Samsung32 frames
+#   make PROTO=nec|sirc       IR protocol (default in config.h)
+#   make SINGLE_TAP=1         trigger on one press instead of a double tap
+#   make PROTO_SAMSUNG=1      NEC build: also accept Samsung32 frames
 #   make flash-uno            avrdude through the Nano bootloader (PORT=, BAUD=57600 for old)
 #   make flash-t13            avrdude through USBtinyISP
 #   make fuses-t13            9.6 MHz, CKDIV8 off, BOD off, reset kept (set once)
@@ -37,6 +39,12 @@ CFLAGS += -DDEBUG
 endif
 ifeq ($(PROTO_SAMSUNG),1)
 CFLAGS += -DPROTO_SAMSUNG
+endif
+ifneq ($(PROTO),)
+CFLAGS += -DIR_PROTOCOL=IR_$(shell echo $(PROTO) | tr a-z A-Z)
+endif
+ifeq ($(SINGLE_TAP),1)
+CFLAGS += -DSINGLE_TAP
 endif
 
 OUT  := build/$(MCU)

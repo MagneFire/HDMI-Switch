@@ -1,15 +1,79 @@
 /* IR-controlled HDMI switch.
  *
- * A pin-change interrupt decodes NEC frames from a TSOP38238 (both edges, mark/space pairs).
- * The main loop waits for the toggle key, reads which of the switch's LEDs is lit,
- * and pulls the switch's own button low until the wanted LED comes on.
+ * A pin-change interrupt decodes IR frames from a TSOP receiver: NEC (mark/space pairs on
+ * the falling edges) or Sony SIRC (mark widths on the rising edges), chosen by IR_PROTOCOL.
+ * The main loop groups frames into presses, waits for the trigger (single press or double
+ * tap), reads which of the switch's LEDs is lit, and pulls the switch's own button low
+ * until the wanted LED comes on.
  *
  * Builds for ATmega328P (prototype) and ATtiny13A (final); see hal.h and Makefile.
  */
 #include "config.h"
 #include "hal.h"
 
-/* --- NEC timing, in Timer0 ticks ------------------------------------------------------ */
+#define IN(v, lo, hi) ((v) >= (lo) && (v) <= (hi))
+#define NOT_IN_FRAME  0xFF
+
+_Static_assert(US_TO_TICKS(11250) < 65535u, "lead mark must fit the 16-bit tick counter");
+_Static_assert(US_TO_TICKS(350) > 0, "tick resolution too coarse");
+_Static_assert(MS_TO_OVF(RESAMPLE_MS) > 0, "overflow clock too coarse");
+
+volatile uint16_t hal_ovf;
+
+ISR(OVF_VECT)
+{
+    hal_ovf++;
+}
+
+/* --- decoder state (ISR context only) ------------------------------------------------- */
+
+static uint16_t t_fall, t_rise;
+static uint8_t nbits = NOT_IN_FRAME;
+static uint8_t bitmask;
+static uint8_t data[4];
+
+#ifdef DEBUG
+#define DBG_RAW 42                      /* 21 pairs: a 20-bit SIRC frame plus header */
+static volatile uint16_t dbg_raw[DBG_RAW], dbg_edges;
+static volatile uint8_t dbg_n;
+#define DBG_CAPTURE(a, b)                                       \
+    do {                                                        \
+        dbg_edges++;                                            \
+        if (dbg_n < DBG_RAW) {                                  \
+            dbg_raw[dbg_n++] = (a);                             \
+            dbg_raw[dbg_n++] = (b);                             \
+        }                                                       \
+    } while (0)
+#else
+#define DBG_CAPTURE(a, b) ((void)0)
+#endif
+
+static volatile uint8_t ir_ready;
+static volatile uint16_t ir_addr;
+static volatile uint8_t ir_cmd;
+
+static inline void frame_start(void)
+{
+    nbits = 0;
+    bitmask = 1;
+    data[0] = data[1] = data[2] = data[3] = 0;
+}
+
+static inline void store_bit(uint8_t one)
+{
+    if (one)
+        data[nbits >> 3] |= bitmask;
+    bitmask <<= 1;
+    if (!bitmask)
+        bitmask = 1;
+    nbits++;
+}
+
+#if IR_PROTOCOL == IR_NEC
+
+/* NEC: 9 ms lead mark, 4.5 ms space (2.25 ms for a repeat frame), then 32 bits LSB first as
+ * 560 us marks with 560 us (0) or 1690 us (1) spaces: address, ~address, command, ~command.
+ * Decoded on the falling edges, where a complete mark/space pair is known. */
 
 #define LEAD_MARK_MIN   US_TO_TICKS(6750)   /*  9000 us -25 % */
 #define LEAD_MARK_MAX   US_TO_TICKS(11250)
@@ -24,43 +88,6 @@
 #define SAM_MARK_MAX    US_TO_TICKS(5625)
 #endif
 
-_Static_assert(US_TO_TICKS(11250) < 65535u, "lead mark must fit the 16-bit tick counter");
-_Static_assert(BIT_MIN > 0, "tick resolution too coarse");
-_Static_assert(MS_TO_OVF(RESAMPLE_MS) > 0, "overflow clock too coarse");
-
-#define IN(v, lo, hi) ((v) >= (lo) && (v) <= (hi))
-#define NOT_IN_FRAME  0xFF
-
-volatile uint16_t hal_ovf;
-
-ISR(OVF_VECT)
-{
-    hal_ovf++;
-}
-
-/* --- decoder (ISR context only) ------------------------------------------------------- */
-
-static uint16_t t_fall, t_rise;
-static uint8_t nbits = NOT_IN_FRAME;
-static uint8_t bitmask;
-static uint8_t data[4];
-
-#ifdef DEBUG
-#define DBG_RAW 32                      /* 16 mark/space pairs */
-static volatile uint16_t dbg_raw[DBG_RAW], dbg_edges;
-static volatile uint8_t dbg_n;
-#endif
-static volatile uint8_t ir_ready;
-static volatile uint16_t ir_addr;
-static volatile uint8_t ir_cmd;
-
-static inline void frame_start(void)
-{
-    nbits = 0;
-    bitmask = 1;
-    data[0] = data[1] = data[2] = data[3] = 0;
-}
-
 ISR(PCINT_VECT)
 {
     uint16_t now = tick();
@@ -74,13 +101,7 @@ ISR(PCINT_VECT)
     uint16_t mark = t_rise - t_fall;
     uint16_t space = now - t_rise;
     t_fall = now;
-#ifdef DEBUG
-    dbg_edges++;
-    if (dbg_n < DBG_RAW) {              /* raw mark/space pairs for the trace */
-        dbg_raw[dbg_n++] = mark;
-        dbg_raw[dbg_n++] = space;
-    }
-#endif
+    DBG_CAPTURE(mark, space);
 
     if (IN(mark, LEAD_MARK_MIN, LEAD_MARK_MAX)) {
         if (IN(space, LEAD_SPACE_MIN, LEAD_SPACE_MAX))
@@ -103,16 +124,15 @@ ISR(PCINT_VECT)
         return;
     }
     if (IN(space, ONE_MIN, ONE_MAX)) {
-        data[nbits >> 3] |= bitmask;
-    } else if (!IN(space, BIT_MIN, BIT_MAX)) {
+        store_bit(1);
+    } else if (IN(space, BIT_MIN, BIT_MAX)) {
+        store_bit(0);
+    } else {
         nbits = NOT_IN_FRAME;
         return;
     }
-    bitmask <<= 1;
-    if (!bitmask)
-        bitmask = 1;
 
-    if (++nbits == 32) {
+    if (nbits == 32) {
         if (data[2] == (uint8_t)~data[3]) {
             /* standard NEC sends addr, ~addr: report 8 bits, like IRremote does */
             ir_addr = (data[1] == (uint8_t)~data[0]) ? data[0]
@@ -123,6 +143,71 @@ ISR(PCINT_VECT)
         nbits = NOT_IN_FRAME;
     }
 }
+
+#elif IR_PROTOCOL == IR_SIRC
+
+/* Sony SIRC: 2.4 ms header mark, then SIRC_BITS bits LSB first as 1.2 ms (1) or 0.6 ms (0)
+ * marks separated by 0.6 ms spaces: 7-bit command, then the address (5 bits for 12-bit
+ * frames, 8 for 15, 5 + 8 extended for 20). Each press sends the frame three times, 45 ms
+ * apart. Decoded on the rising edges, where the mark width is known; the frame is complete
+ * with its last mark, no trailing gap needed. */
+
+#define HDR_MIN         US_TO_TICKS(1800)   /*  2400 us */
+#define HDR_MAX         US_TO_TICKS(3000)
+#define ZERO_MIN        US_TO_TICKS(350)    /*   600 us */
+#define ZERO_MAX        US_TO_TICKS(850)
+#define ONE_MIN         US_TO_TICKS(900)    /*  1200 us */
+#define ONE_MAX         US_TO_TICKS(1500)
+#define SPACE_MIN       US_TO_TICKS(300)    /*   600 us, shortened by the TSOP's mark stretch */
+#define SPACE_MAX       US_TO_TICKS(900)
+
+ISR(PCINT_VECT)
+{
+    uint16_t now = tick();
+
+    if (!(IR_PIN & _BV(IR_BIT))) {      /* falling edge: mark starts */
+        t_fall = now;
+        return;
+    }
+
+    /* rising edge: the mark and the space before it are known */
+    uint16_t mark = now - t_fall;
+    uint16_t space = t_fall - t_rise;
+    t_rise = now;
+    DBG_CAPTURE(space, mark);
+
+    if (IN(mark, HDR_MIN, HDR_MAX)) {
+        frame_start();
+        return;
+    }
+    if (nbits >= SIRC_BITS)
+        return;                         /* not inside a frame */
+
+    if (!IN(space, SPACE_MIN, SPACE_MAX)) {
+        nbits = NOT_IN_FRAME;
+        return;
+    }
+    if (IN(mark, ONE_MIN, ONE_MAX)) {
+        store_bit(1);
+    } else if (IN(mark, ZERO_MIN, ZERO_MAX)) {
+        store_bit(0);
+    } else {
+        nbits = NOT_IN_FRAME;
+        return;
+    }
+
+    if (nbits == SIRC_BITS) {
+        /* command = bits 0..6, address = the rest, like IRremote reports Sony */
+        ir_cmd = (uint8_t)(data[0] & 0x7F);
+        ir_addr = (uint16_t)(((uint16_t)(data[1] | (data[2] << 8)) << 1) | (data[0] >> 7));
+        ir_ready = 1;
+        nbits = NOT_IN_FRAME;
+    }
+}
+
+#else
+#error "IR_PROTOCOL must be IR_NEC or IR_SIRC"
+#endif
 
 /* --- debug trace (ATmega328P only) ---------------------------------------------------- */
 
@@ -154,13 +239,6 @@ static void uart_str(const char *s)
         uart_putc(*s++);
 }
 
-static void debug_init(void)
-{
-    UCSR0A = _BV(U2X0);
-    UBRR0 = (uint16_t)(F_CPU / 8UL / 115200UL - 1);  /* 16 -> 117.6 kbaud, 2 % off */
-    UCSR0B = _BV(TXEN0);
-}
-
 static void uart_dec(uint16_t v)
 {
     char buf[6];
@@ -176,6 +254,16 @@ static void uart_dec(uint16_t v)
 /* ticks -> microseconds, for the trace only */
 #define TICKS_TO_US(t) ((uint16_t)((uint32_t)(t) * 1000000UL / TICKS_PER_SEC))
 
+static void debug_init(void)
+{
+    UCSR0A = _BV(U2X0);
+    UBRR0 = (uint16_t)(F_CPU / 8UL / 115200UL - 1);  /* 16 -> 117.6 kbaud, 2 % off */
+    UCSR0B = _BV(TXEN0);
+    uart_str("boot pin=");
+    uart_putc((IR_PIN & _BV(IR_BIT)) ? '1' : '0');
+    uart_putc('\n');
+}
+
 static void debug_poll(void)
 {
     static uint16_t last_status;
@@ -189,9 +277,13 @@ static void debug_poll(void)
         uart_dec(dbg_edges);
         uart_putc('\n');
     }
-    if (dbg_n >= DBG_RAW) {             /* raw trace: mark,space pairs in us, oldest first */
+    if (dbg_n >= DBG_RAW) {             /* raw trace in us, oldest first */
         uint8_t i;
-        uart_str("raw");
+#if IR_PROTOCOL == IR_NEC
+        uart_str("raw mark,space:");
+#else
+        uart_str("raw space,mark:");
+#endif
         for (i = 0; i < DBG_RAW; i += 2) {
             uart_putc(' ');
             uart_dec(TICKS_TO_US(dbg_raw[i]));
@@ -223,7 +315,7 @@ static void debug_state(const char *tag, uint8_t cur, uint8_t target)
     uart_putc('\n');
 }
 #else
-#define debug_init()
+#define debug_init()            ((void)0)
 #define debug_poll()            ((void)0)
 #define debug_code(a, c)        ((void)0)
 #define debug_state(t, c, g)    ((void)0)
@@ -253,17 +345,17 @@ static uint8_t read_input_settled(void)
 
 int main(void)
 {
-    uint16_t last_code = 0;
-    uint16_t addr;
+    uint16_t last_frame = 0;        /* time of the previous decoded frame */
+    uint16_t last_action = 0;       /* end of the previous press sequence */
+#ifdef DOUBLE_TAP_MS
+    uint16_t last_tap = 0;
+    uint8_t armed = 0;              /* first tap seen, waiting for the second */
+#endif
+    uint16_t now, addr;
     uint8_t cmd, cur, target, presses;
 
     hal_init();
     debug_init();
-#ifdef DEBUG
-    uart_str("boot pin=");
-    uart_putc((IR_PIN & _BV(IR_BIT)) ? '1' : '0');
-    uart_putc('\n');
-#endif
 
     for (;;) {
         debug_poll();
@@ -276,16 +368,31 @@ int main(void)
         sei();
         debug_code(addr, cmd);
 
-        if ((uint16_t)(now_ovf() - last_code) < MS_TO_OVF(DEBOUNCE_MS)) {
-            last_code = now_ovf();      /* held key or double decode: the key must be */
-            continue;                   /* released for DEBOUNCE_MS before the next flip */
+        /* frames in quick succession are the same key held down: one press */
+        now = now_ovf();
+        if ((uint16_t)(now - last_frame) < MS_TO_OVF(PRESS_GAP_MS)) {
+            last_frame = now;
+            continue;
         }
+        last_frame = now;
 
-        cur = read_input_settled();
+        if ((uint16_t)(now - last_action) < MS_TO_OVF(LOCKOUT_MS))
+            continue;                   /* too soon after a switch action */
+
         if (addr == TOGGLE_ADDR && cmd == TOGGLE_CMD) {
+#ifdef DOUBLE_TAP_MS
+            if (!armed || (uint16_t)(now - last_tap) > MS_TO_OVF(DOUBLE_TAP_MS)) {
+                armed = 1;              /* first tap: wait for the second */
+                last_tap = now;
+                continue;
+            }
+            armed = 0;
+#endif
+            cur = read_input_settled();
             target = (cur == INPUT_KPN) ? INPUT_GOOGLE : INPUT_KPN;
 #ifdef BOX_ADDR
         } else if (addr == BOX_ADDR) {
+            cur = read_input_settled();
             target = INPUT_KPN;
 #endif
         } else {
@@ -301,6 +408,7 @@ int main(void)
             cur = read_input_settled();
         }
         debug_state(cur == target ? "ok" : "fail", cur, target);
-        last_code = now_ovf();          /* debounce counted from the end of the presses */
+        last_action = now_ovf();
+        last_frame = last_action;       /* frames decoded during the presses: same press */
     }
 }

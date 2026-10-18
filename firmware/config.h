@@ -2,17 +2,43 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-/* Trigger key on the KPN C3 remote, TV section programmed to LG code 633 (2026-10-18).
- * Starting values are the common LG TV NEC codes: address 0x04, "Input" 0x0B
- * (power 0x08, vol+ 0x02, vol- 0x03, mute 0x09). UNVERIFIED until ReceiveDump shows them.
- * Address rule: 8-bit value when the remote sends addr + ~addr (standard NEC),
- * 16-bit value otherwise (extended NEC, Samsung), i.e. as IRremote prints it. */
-#define TOGGLE_ADDR   0x04
-#define TOGGLE_CMD    0x0B
+/* --- IR protocol ---------------------------------------------------------------------- */
 
-/* Optional: any frame from the KPN box's own address switches to the box. Leave undefined
- * until the box address is recorded. */
+#define IR_NEC   1   /* 38 kHz, 9 ms lead, 32 bits; LG, Hisense, Samsung with PROTO_SAMSUNG */
+#define IR_SIRC  2   /* Sony, 40 kHz, 2.4 ms header, pulse-width bits, 3 frames per press */
+
+/* The KPN remote's TV section must keep driving the Sony KDL-40ZX1 (volume, mute), so the
+ * trigger is a Sony code. The TSOP38238 receives 40 kHz at reduced range; a TSOP38240 is
+ * the exact-carrier part. */
+#ifndef IR_PROTOCOL                      /* make PROTO=nec|sirc overrides */
+#define IR_PROTOCOL  IR_SIRC
+#endif
+#define SIRC_BITS    12          /* 12 for Sony TV codes (7-bit command, 5-bit address) */
+
+/* --- trigger key ---------------------------------------------------------------------- */
+
+/* Sony TV defaults (address 1): mute 20, vol+ 18, vol- 19, power 21, input 37.
+ * UNVERIFIED until the recorder shows what the C3's Sony code actually sends.
+ * NEC addresses: 8-bit when the remote sends addr + ~addr, 16-bit otherwise (as IRremote
+ * prints them). */
+#define TOGGLE_ADDR  1
+#define TOGGLE_CMD   20
+
+/* Define to require two presses of the trigger key within this many ms. A double tap of
+ * Mute mutes and unmutes the TV, net nothing. Leave undefined for a single press. */
+#ifndef SINGLE_TAP                       /* make SINGLE_TAP=1 overrides */
+#define DOUBLE_TAP_MS  600
+#endif
+
+/* Frames closer together than this belong to one press (Sony repeats every 45 ms, NEC2
+ * every 108 ms); further apart is a new press. */
+#define PRESS_GAP_MS   130
+
+/* Optional: any frame from the KPN box's own address switches to the box. Only works if
+ * the box uses the same protocol. Leave undefined until recorded. */
 /* #define BOX_ADDR   0x0000 */
+
+/* --- switch side ---------------------------------------------------------------------- */
 
 /* Only two sources are ever connected, and the switch never rests on an input without one,
  * so two LED senses suffice: the KPN input's LED on sense 0, the Google input's LED on
@@ -29,7 +55,7 @@
 #define SETTLE_MS     300
 #define RESAMPLE_MS   50     /* LED re-sample interval while none is lit ... */
 #define RESAMPLE_MAX  20     /* ... up to RESAMPLE_MS * RESAMPLE_MAX = 1 s */
-#define DEBOUNCE_MS   500
+#define LOCKOUT_MS    500    /* ignore new presses this long after a switch action */
 #define MAX_PRESSES   4
 
 #endif
