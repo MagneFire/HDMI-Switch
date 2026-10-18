@@ -34,7 +34,7 @@ Constraint: HDMI-CEC stays **off** on the Google TV Streamer. With CEC on it put
 | Button idle / pressed | 3.45 V / GND | one side on GND, the other pulled up: open-drain press is right |
 | LED node high / low | right leg (anode, driven): 4.2 V lit / 0 V not lit; left leg (cathode): 1.7 V lit / 0 V | active-high on the anode side. Sense the right leg through 10 kΩ; `LED_ACTIVE_LOW 0`. 4.2 V is above a 3.3 V ATtiny's VCC: the 10 kΩ keeps the clamp current under 0.1 mA |
 | LEDs multiplexed? |  | not yet checked |
-| Auto-switch on source power-on? | yes: with one source attached it always selects that one | a press blanks all LEDs for a split second, then it re-selects the same input. Firmware re-samples the LEDs for up to 1 s after a press |
+| Auto-switch on source power-on? | yes: with one source attached it always selects that one | a press blanks all LEDs, then it re-selects: measured 2026-10-18 with the probe, 145 ms for a finger press, 174 ms for the firmware's 100 ms open-drain press (LED back 74 ms after release). `SETTLE_MS 300` covers it; the 1 s re-sample loop is margin |
 
 Notes from the measurements:
 

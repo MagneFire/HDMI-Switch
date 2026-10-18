@@ -264,6 +264,8 @@ static void debug_init(void)
     uart_putc('\n');
 }
 
+static void debug_leds(void);
+
 static void debug_poll(void)
 {
     static uint16_t last_status;
@@ -279,6 +281,7 @@ static void debug_poll(void)
         uart_putc('0' + ((LED_PIN >> LED_SHIFT) & 3));   /* bit0 KPN, bit1 Google */
         uart_putc('\n');
     }
+    debug_leds();
     if (dbg_n >= DBG_RAW) {             /* raw trace in us, oldest first */
         uint8_t i;
 #if IR_PROTOCOL == IR_NEC
@@ -307,6 +310,30 @@ static void debug_code(uint16_t addr, uint8_t cmd)
     uart_putc('\n');
 }
 
+/* Print every change of the LED senses with a timestamp (Timer0 overflows, 1.024 ms each on
+ * the Uno) so the switch's post-press blank can be timed. */
+static void debug_leds(void)
+{
+    static uint8_t last = 0xFF;
+    uint8_t l = (uint8_t)((LED_PIN >> LED_SHIFT) & 3);
+    if (l != last) {
+        last = l;
+        uart_str("led=");
+        uart_putc((char)('0' + l));
+        uart_str(" t=");
+        uart_dec(now_ovf());
+        uart_putc('\n');
+    }
+}
+
+/* delay_ovf() that keeps watching the LEDs, for the press loop */
+static void debug_delay(uint16_t n)
+{
+    uint16_t start = now_ovf();
+    while ((uint16_t)(now_ovf() - start) < n)
+        debug_leds();
+}
+
 static void debug_state(const char *tag, uint8_t cur, uint8_t target)
 {
     uart_str(tag);
@@ -321,6 +348,8 @@ static void debug_state(const char *tag, uint8_t cur, uint8_t target)
 #define debug_poll()            ((void)0)
 #define debug_code(a, c)        ((void)0)
 #define debug_state(t, c, g)    ((void)0)
+#define debug_leds()            ((void)0)
+#define debug_delay(n)          delay_ovf(n)
 #endif
 
 /* --- switch state --------------------------------------------------------------------- */
@@ -341,7 +370,7 @@ static uint8_t read_input_settled(void)
 {
     uint8_t v, tries = RESAMPLE_MAX;
     while (!(v = read_input()) && --tries)
-        delay_ovf(MS_TO_OVF(RESAMPLE_MS));
+        debug_delay(MS_TO_OVF(RESAMPLE_MS));
     return v;
 }
 
@@ -404,9 +433,9 @@ int main(void)
 
         for (presses = 0; presses < MAX_PRESSES && cur != target; presses++) {
             press();
-            delay_ovf(MS_TO_OVF(PRESS_MS));
+            debug_delay(MS_TO_OVF(PRESS_MS));
             release();
-            delay_ovf(MS_TO_OVF(SETTLE_MS));
+            debug_delay(MS_TO_OVF(SETTLE_MS));
             cur = read_input_settled();
         }
         debug_state(cur == target ? "ok" : "fail", cur, target);
