@@ -16,7 +16,7 @@ takes a Sony code. Sony is SIRC: 40 kHz, 2.4 ms header, pulse-width bits, 12 bit
 (address 1; mute 20, vol+ 18, vol− 19, power 21, input 37), sent three times per press. The
 firmware decodes it with `IR_PROTOCOL IR_SIRC`.
 
-**Result (2026-10-18): code 534 is the standard Sony TV set.** Recorded with the probe, all
+**Result (2026-10-18): code 534 is the standard Sony TV set and drives the KDL-40ZX1's volume and mute.** Recorded with the probe, all
 12-bit SIRC, address 1:
 
 | Key | Command | Note |

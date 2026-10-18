@@ -106,11 +106,11 @@ If the LED node swings less than ~2.5 V, the Uno won't read it as HIGH: use the 
 
 ### Test matrix
 
-- [x] From KPN, press the toggle key → lands on Google. Press again → back on KPN. Repeat 10 times. **Done:** 2026-10-18 on the Nano: Google→KPN and KPN→Google, one press each, `ok` both ways. Repeat count still to do.
+- [x] From KPN, press the toggle key → lands on Google. Press again → back on KPN. Repeat 10 times. **Done:** 2026-10-18 on the Nano: Google→KPN and KPN→Google, one press each, `ok` both ways; ten double taps in a row: ten toggles, no misses.
 - [ ] From input 3 (press the switch's own button) → toggle lands on KPN.
-- [ ] Hold the key for 2 s → exactly one flip, not two.
+- [x] Hold the key for 2 s → exactly one flip, not two. **Done:** with the double-tap trigger a hold (3 s, ~76 frames) flips nothing, as intended.
 - [x] Press twice quickly (< 500 ms apart) → one flip. **Done:** the double tap is the trigger now; a lone press does nothing (verified).
-- [ ] Press from 3 m and from an angle → still triggers (receiver placement).
+- [x] Press from 3 m and from an angle → still triggers (receiver placement). **Done:** both toggled on the first press (2026-10-18).
 - [ ] Power-cycle the Google TV Streamer → note whether the switch auto-jumps; if so the next toggle still reads the real state and does the right thing.
 - [ ] Run for an evening of normal use; count misfires.
 

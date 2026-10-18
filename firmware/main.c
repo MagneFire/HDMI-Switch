@@ -307,6 +307,16 @@ static void debug_code(uint16_t addr, uint8_t cmd)
     uart_hex((uint8_t)addr);
     uart_str(" C=");
     uart_hex(cmd);
+    uart_str(" t=");
+    uart_dec(now_ovf());
+    uart_putc(' ');                 /* debug_tag() ends the line */
+}
+
+/* What the main loop did with the frame: r = repeat of the held key, L = lockout,
+ * 1 = first tap armed, 2 = second tap (action follows), x = not the trigger key */
+static void debug_tag(char c)
+{
+    uart_putc(c);
     uart_putc('\n');
 }
 
@@ -347,6 +357,7 @@ static void debug_state(const char *tag, uint8_t cur, uint8_t target)
 #define debug_init()            ((void)0)
 #define debug_poll()            ((void)0)
 #define debug_code(a, c)        ((void)0)
+#define debug_tag(c)            ((void)0)
 #define debug_state(t, c, g)    ((void)0)
 #define debug_leds()            ((void)0)
 #define debug_delay(n)          delay_ovf(n)
@@ -403,21 +414,26 @@ int main(void)
         now = now_ovf();
         if ((uint16_t)(now - last_frame) < MS_TO_OVF(PRESS_GAP_MS)) {
             last_frame = now;
+            debug_tag('r');
             continue;
         }
         last_frame = now;
 
-        if ((uint16_t)(now - last_action) < MS_TO_OVF(LOCKOUT_MS))
+        if ((uint16_t)(now - last_action) < MS_TO_OVF(LOCKOUT_MS)) {
+            debug_tag('L');
             continue;                   /* too soon after a switch action */
+        }
 
         if (addr == TOGGLE_ADDR && cmd == TOGGLE_CMD) {
 #ifdef DOUBLE_TAP_MS
             if (!armed || (uint16_t)(now - last_tap) > MS_TO_OVF(DOUBLE_TAP_MS)) {
                 armed = 1;              /* first tap: wait for the second */
                 last_tap = now;
+                debug_tag('1');
                 continue;
             }
             armed = 0;
+            debug_tag('2');
 #endif
             cur = read_input_settled();
             target = (cur == INPUT_KPN) ? INPUT_GOOGLE : INPUT_KPN;
@@ -427,6 +443,7 @@ int main(void)
             target = INPUT_KPN;
 #endif
         } else {
+            debug_tag('x');
             continue;
         }
         debug_state("go", cur, target);
