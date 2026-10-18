@@ -1,0 +1,4 @@
+# Editor diagnostics only; the Makefile is the real build.
+CompileFlags:
+  Compiler: /opt/homebrew/opt/avr-gcc@14/bin/avr-gcc
+  Add: [-mmcu=atmega328p, -DF_CPU=16000000UL, -std=gnu11]
