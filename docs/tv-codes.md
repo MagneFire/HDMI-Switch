@@ -16,11 +16,23 @@ takes a Sony code. Sony is SIRC: 40 kHz, 2.4 ms header, pulse-width bits, 12 bit
 (address 1; mute 20, vol+ 18, vol− 19, power 21, input 37), sent three times per press. The
 firmware decodes it with `IR_PROTOCOL IR_SIRC`.
 
-Try in the PDF's order and record every key with the probe: 534, 540, 539, 529, 295, 541,
-536, 167, 535, 294, 530, 441, 169, 533, 424, 419, 259, 185, 168, 542, 144, 852, 537, 531,
-297, 237, 231. Keep the first code where Vol+, Vol− and Mute work on the TV. Then note
-whether the TV reacts to Source and to Power: a key it ignores is the cleanest trigger. If
-every key works, the trigger is a double tap of Mute (`DOUBLE_TAP_MS` in config.h).
+**Result (2026-10-18): code 534 is the standard Sony TV set.** Recorded with the probe, all
+12-bit SIRC, address 1:
+
+| Key | Command | Note |
+| --- | --- | --- |
+| Mute | 20 | trigger: double tap |
+| Vol+ | 18 | |
+| Vol− | 19 | |
+| Source | 37 | Sony "Input"; the TV will act on it |
+| Power | 21 | the TV will act on it |
+
+Every key is a real Sony TV command, so there is no ignored key to use as a single-press
+trigger. The trigger is a double tap of Mute (`DOUBLE_TAP_MS` in config.h); a lone Mute still
+mutes the TV.
+
+Other Sony codes in the PDF, if 534 ever misbehaves: 540, 539, 529, 295, 541, 536, 167, 535,
+294, 530, 441, 169, 533, 424, 419, 259, 185, 168, 542, 144, 852, 537, 531, 297, 237, 231.
 
 ## NEC candidate order (original plan, superseded)
 

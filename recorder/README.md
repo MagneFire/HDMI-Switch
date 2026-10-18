@@ -36,18 +36,21 @@ commands, and the Sony shows no reaction. Otherwise try the next code.
 
 ## Results
 
-Fill in and copy the Source row into `firmware/config.h` (`TOGGLE_ADDR`, `TOGGLE_CMD`) and,
-if wanted, the box address into `BOX_ADDR`.
+Recorded 2026-10-18 with the probe build (`DEBUG=1`), C3 TV section on Sony code 534.
+Already in `firmware/config.h` (`TOGGLE_ADDR 1`, `TOGGLE_CMD 20`).
 
 | Key | Protocol | Address | Command | Repeat frame? | Action |
 | --- | --- | --- | --- | --- | --- |
-| Mute |  |  |  |  | double tap = toggle KPN ⇄ Google |
-| Source |  |  |  |  | toggle if the TV ignores it |
-| TV power |  |  |  |  | toggle if the TV ignores it |
-| Vol+ |  |  |  |  | ignore |
-| Vol− |  |  |  |  | ignore |
-| Box OK |  |  |  |  | → KPN, optional |
-| Box channel up |  |  |  |  | → KPN, optional |
+| Mute | SIRC 12-bit | 1 | 20 (0x14) | full frames, 45 ms apart, 3 per press | double tap = toggle KPN ⇄ Google |
+| Source | SIRC 12-bit | 1 | 37 (0x25) | same | none (TV acts on it) |
+| TV power | SIRC 12-bit | 1 | 21 (0x15) | same | none (TV acts on it) |
+| Vol+ | SIRC 12-bit | 1 | 18 (0x12) | same | ignore |
+| Vol− | SIRC 12-bit | 1 | 19 (0x13) | same | ignore |
+| Box OK |  |  |  |  | → KPN, optional, not recorded |
+| Box channel up |  |  |  |  | → KPN, optional, not recorded |
+
+Measured timing: header 2.39 ms mark / 0.6 ms space, bits 0.6 ms (0) and 1.2 ms (1) marks
+with 0.6 ms spaces, frame gap about 8.5 ms after a 1-heavy frame.
 
 Address format: IRremote prints an 8-bit address (`0x4`) when the second byte is the inverse
 of the first (standard NEC), and a 16-bit one (`0x6B86`) otherwise (extended NEC, Samsung).

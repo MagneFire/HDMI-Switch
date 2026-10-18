@@ -17,8 +17,9 @@
 
 /* --- trigger key ---------------------------------------------------------------------- */
 
-/* Sony TV defaults (address 1): mute 20, vol+ 18, vol- 19, power 21, input 37.
- * UNVERIFIED until the recorder shows what the C3's Sony code actually sends.
+/* Recorded 2026-10-18 with the C3 on Sony code 534: 12-bit SIRC, address 1, mute 20,
+ * vol+ 18, vol- 19, power 21, input 37 (the standard Sony TV set). Three frames per press,
+ * 45 ms apart.
  * NEC addresses: 8-bit when the remote sends addr + ~addr, 16-bit otherwise (as IRremote
  * prints them). */
 #define TOGGLE_ADDR  1
