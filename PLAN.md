@@ -27,12 +27,18 @@ Constraint: HDMI-CEC stays **off** on the Google TV Streamer. With CEC on it put
 
 | Measurement | Value | Notes |
 | --- | --- | --- |
-| HDMI 5 V rail |  |  |
-| LDO output |  |  |
-| Button idle / pressed |  |  |
-| LED 1/2/3 node high / low |  |  |
-| LEDs multiplexed? |  |  |
-| Auto-switch on source power-on? |  |  |
+| HDMI 5 V rail |  | not yet measured |
+| LDO output | ~3.45 V (inferred from the button pull-up) | 2026-10-18 |
+| Button idle / pressed | 3.45 V / GND | one side on GND, the other pulled up: open-drain press is right |
+| LED node high / low | right leg (anode, driven): 4.2 V lit / 0 V not lit; left leg (cathode): 1.7 V lit / 0 V | active-high on the anode side. Sense the right leg through 10 kΩ; `LED_ACTIVE_LOW 0`. 4.2 V is above a 3.3 V ATtiny's VCC: the 10 kΩ keeps the clamp current under 0.1 mA |
+| LEDs multiplexed? |  | not yet checked |
+| Auto-switch on source power-on? | yes: with one source attached it always selects that one | a press blanks all LEDs for a split second, then it re-selects the same input. Firmware re-samples the LEDs for up to 1 s after a press |
+
+Notes from the measurements:
+
+- The MCU can run from the ~3.45 V rail. The LED senses then see 4.2 V, above VCC: keep the
+  10 kΩ series resistor (clamp current < 0.1 mA) or use a 10 k / 22 k divider.
+- With only one source attached, the toggle cannot leave that input; test with both sources on.
 
 ### Board notes (from the photo)
 
@@ -70,9 +76,8 @@ Done when: a trigger key on the remote reliably lands the switch on the right in
 | --- | --- | --- |
 | IR receiver OUT | D2 | pin-change or external interrupt |
 | Switch button | D3 | open-drain: INPUT idle, OUTPUT LOW to press; 1 kΩ series |
-| LED 1 sense | D4 | 10 kΩ series, read the node that swings |
-| LED 2 sense | D5 | same |
-| LED 3 sense | D6 | same |
+| KPN input's LED sense | D4 | 10 kΩ series, on the LED's right leg (anode, 4.2 V lit / 0 V off) |
+| Google input's LED sense | D5 | same |
 | GND | GND | common with the switch board |
 
 Keep the Uno's 5 V off the switch board; share only GND. The series resistors and open-drain press keep 5 V logic from stressing a 3.3 V IC.
@@ -83,7 +88,7 @@ If the LED node swings less than ~2.5 V, the Uno won't read it as HIGH: use the 
 
 - No IRremote in the final sketch. Write a ~60-line NEC decoder on a pin-change interrupt: measure mark/space, assemble 32 bits, verify `cmd == ~cmd_inv`, emit a code once per press and ignore repeat frames.
 - Timing without `micros()`: on the Uno it's fine to use it, but write the decoder against a `tick()` function you can swap. On the 13A, `tick()` reads Timer0 (prescaler /64 at 9.6 MHz = 6.7 µs per tick) plus an overflow counter so the 9 ms NEC lead fits. Keep all timing in 8-/16-bit integers, no floats, no division.
-- Read the three LEDs into a 3-bit value; map to current input 1–3; 0 or more than one bit set = unknown → re-read after 20 ms.
+- Read the KPN and Google LEDs into a 2-bit value; exactly one bit set = that input; 0 or both = unknown → keep re-reading every 50 ms for up to 1 s (the switch blanks the LEDs after a press).
 - Toggle logic: on the toggle code, read the current input first. `target = (current == KPN) ? GOOGLE : KPN`. Input 3 or unknown also goes to KPN, so the first press from any odd state lands somewhere sensible.
 - State machine: `IDLE` → on code set `target` → `PRESS` (hold low 100 ms, release 300 ms, let the switch settle) → re-read LEDs → match ⇒ `IDLE`, else `PRESS` again, max 4 presses, then give up.
 - Debounce: ignore a new code within 500 ms of the last. This matters more with a toggle: a repeat frame or a double-decode would flip it straight back.
@@ -108,14 +113,14 @@ Done when: the ATtiny13A on a SOIC-8 breakout passes the same test matrix as the
 
 | ATtiny13A pin | Signal | Why here |
 | --- | --- | --- |
-| PB0 (MOSI) | LED 1 sense | high-impedance input, harmless on ISP |
-| PB1 (MISO) | LED 2 sense | same |
-| PB2 (SCK) | LED 3 sense | same |
+| PB0 (MOSI) | KPN input's LED sense | high-impedance input, harmless on ISP |
+| PB1 (MISO) | Google input's LED sense | same |
+| PB2 (SCK) | free | only two sources are ever connected, so the third LED is not sensed |
 | PB3 (ADC3) | IR receiver OUT | off the ISP lines (receiver output could fight the programmer) |
 | PB4 (ADC2) | Button (open-drain) | off the ISP lines |
 | PB5 | RESET | keep reserved; using it needs high-voltage programming |
 
-The 13A and 85 share this pinout, so the Uno-as-ISP wiring and the breakout are the same if you ever fall back to an 85. Optional: a resistor ladder from the three LEDs into one ADC pin (PB2 or PB4) frees two pins.
+The 13A and 85 share this pinout, so the Uno-as-ISP wiring and the breakout are the same if you ever fall back to an 85. Two LED senses are enough: the switch never rests on an input without a source (Phase 0), and "neither lit" still shows the blank after a press.
 
 ### Toolchain
 
