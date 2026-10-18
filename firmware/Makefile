@@ -12,6 +12,10 @@
 #   make fuses-t13            9.6 MHz, CKDIV8 off, BOD off, reset kept (set once)
 
 MCU ?= atmega328p
+# The t13 targets always build for the t13, whatever MCU says.
+ifneq (,$(filter flash-t13 fuses-t13,$(MAKECMDGOALS)))
+MCU := attiny13a
+endif
 
 ifeq ($(MCU),attiny13a)
 F_CPU ?= 9600000
