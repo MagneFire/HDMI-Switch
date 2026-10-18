@@ -29,7 +29,7 @@ Constraint: HDMI-CEC stays **off** on the Google TV Streamer. With CEC on it put
 
 | Measurement | Value | Notes |
 | --- | --- | --- |
-| HDMI 5 V rail |  | not yet measured; the 4.2 V LED rail may be this rail after the ORing diodes |
+| HDMI 5 V rail / 4.2 V LED rail | 4.2 V with a source attached, **0 V with no source** (2026-10-18) | the switch has no supply of its own: the 4.2 V is the sources' HDMI +5 V after the ORing diodes and a drop. The ATtiny runs only while a source is plugged in and powered, which is fine: nothing to switch otherwise |
 | LDO output | ~3.45 V (inferred from the button pull-up) | 2026-10-18 |
 | Button idle / pressed | 3.45 V / GND | one side on GND, the other pulled up: open-drain press is right |
 | LED node high / low | right leg (anode, driven): 4.2 V lit / 0 V not lit; left leg (cathode): 1.7 V lit / 0 V | active-high on the anode side. Sense the right leg through 10 kΩ; `LED_ACTIVE_LOW 0`. 4.2 V is above a 3.3 V ATtiny's VCC: the 10 kΩ keeps the clamp current under 0.1 mA |
@@ -42,9 +42,10 @@ Notes from the measurements:
   senses then read a 4.2 V node with a 4.2 V supply: plain digital inputs, the 10 kΩ series
   resistors are optional protection. The button stays open-drain (input idle, output low to
   press), so the switch's own 3.45 V pull-up is never driven high.
-- Still to check: where the 4.2 V comes from. If it is the sources' HDMI 5 V after the ORing
-  diodes it drops when both sources are off, which is harmless (no EEPROM, nothing to switch).
-  Budget: ~5 mA ATtiny at 9.6 MHz + < 2 mA TSOP.
+- The 4.2 V comes from the sources' HDMI 5 V (measured 0 V with nothing plugged in). It drops
+  when both sources are off, which is harmless (no EEPROM, nothing to switch). The chip
+  reboots each time a source appears; the switch auto-selects as before. Budget: ~5 mA ATtiny
+  at 9.6 MHz + < 2 mA TSOP, drawn from whichever source powers the rail.
 - With only one source attached, the toggle cannot leave that input; test with both sources on.
 
 ### Board notes (from the photo)

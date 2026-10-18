@@ -275,6 +275,8 @@ static void debug_poll(void)
         uart_putc((IR_PIN & _BV(IR_BIT)) ? '1' : '0');
         uart_str(" edges=");
         uart_dec(dbg_edges);
+        uart_str(" leds=");
+        uart_putc('0' + ((LED_PIN >> LED_SHIFT) & 3));   /* bit0 KPN, bit1 Google */
         uart_putc('\n');
     }
     if (dbg_n >= DBG_RAW) {             /* raw trace in us, oldest first */
