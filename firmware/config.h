@@ -14,17 +14,21 @@
  * until the box address is recorded. */
 /* #define BOX_ADDR   0x0000 */
 
-/* Which switch input (1..3, as the LEDs are numbered) each source is on. */
-#define INPUT_KPN     1
-#define INPUT_GOOGLE  2
+/* Only two sources are ever connected, and the switch never rests on an input without one,
+ * so two LED senses suffice: the KPN input's LED on sense 0, the Google input's LED on
+ * sense 1 (PB0/PB1 on the ATtiny, D4/D5 on the Nano). These are the read_input() results. */
+#define INPUT_KPN     1      /* sense 0 lit */
+#define INPUT_GOOGLE  2      /* sense 1 lit */
 
-/* 1 if the sensed LED node goes low when the LED is on (Phase 0 measurement). */
+/* 1 if the sensed LED node goes low when the LED is on. Measured 2026-10-18: the LEDs' right
+ * leg (anode) is driven to 4.2 V when lit and 0 V when not, so sense that leg: active high. */
 #define LED_ACTIVE_LOW 0
 
 /* Button press timing and retry policy. */
 #define PRESS_MS      100
 #define SETTLE_MS     300
-#define RESAMPLE_MS   20
+#define RESAMPLE_MS   50     /* LED re-sample interval while none is lit ... */
+#define RESAMPLE_MAX  20     /* ... up to RESAMPLE_MS * RESAMPLE_MAX = 1 s */
 #define DEBOUNCE_MS   500
 #define MAX_PRESSES   4
 

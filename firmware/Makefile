@@ -46,7 +46,7 @@ ELF  := $(OUT)/hdmi_switch.elf
 HEX  := $(OUT)/hdmi_switch.hex
 
 PORT ?= $(firstword $(wildcard /dev/cu.wchusbserial* /dev/cu.usbserial* /dev/ttyUSB*))
-BAUD ?= 115200
+BAUD ?= 57600   # this Nano has the old bootloader; new ones take 115200
 ISP_BITCLOCK ?=
 
 .PHONY: all size clean flash-uno flash-t13 fuses-t13 disasm

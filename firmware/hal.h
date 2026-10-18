@@ -3,7 +3,9 @@
  * ATmega328P (Nano/Uno prototype)      ATtiny13A (final, same as ATtiny85)
  *   PD2  IR receiver OUT (PCINT18)       PB3  IR receiver OUT (PCINT3)
  *   PD3  switch button, open-drain       PB4  switch button, open-drain
- *   PD4..PD6  LED 1..3 sense             PB0..PB2  LED 1..3 sense (ISP lines, inputs)
+ *   PD4  KPN LED sense                   PB0  KPN LED sense (ISP line, input)
+ *   PD5  Google LED sense                PB1  Google LED sense (ISP line, input)
+ *                                        PB2  free (SCK)
  *
  * Timer0 runs free with prescaler /64 on both: 4 us/tick on the Uno, 6.67 us/tick on the 13A.
  * The overflow counter gives a coarse clock (1.02 ms / 1.71 ms per count) for the delays.

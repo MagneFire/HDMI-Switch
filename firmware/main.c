@@ -1,7 +1,7 @@
 /* IR-controlled HDMI switch.
  *
  * A pin-change interrupt decodes NEC frames from a TSOP38238 (both edges, mark/space pairs).
- * The main loop waits for the toggle key, reads which of the switch's three LEDs is lit,
+ * The main loop waits for the toggle key, reads which of the switch's LEDs is lit,
  * and pulls the switch's own button low until the wanted LED comes on.
  *
  * Builds for ATmega328P (prototype) and ATtiny13A (final); see hal.h and Makefile.
@@ -45,6 +45,11 @@ static uint8_t nbits = NOT_IN_FRAME;
 static uint8_t bitmask;
 static uint8_t data[4];
 
+#ifdef DEBUG
+#define DBG_RAW 32                      /* 16 mark/space pairs */
+static volatile uint16_t dbg_raw[DBG_RAW], dbg_edges;
+static volatile uint8_t dbg_n;
+#endif
 static volatile uint8_t ir_ready;
 static volatile uint16_t ir_addr;
 static volatile uint8_t ir_cmd;
@@ -69,6 +74,13 @@ ISR(PCINT_VECT)
     uint16_t mark = t_rise - t_fall;
     uint16_t space = now - t_rise;
     t_fall = now;
+#ifdef DEBUG
+    dbg_edges++;
+    if (dbg_n < DBG_RAW) {              /* raw mark/space pairs for the trace */
+        dbg_raw[dbg_n++] = mark;
+        dbg_raw[dbg_n++] = space;
+    }
+#endif
 
     if (IN(mark, LEAD_MARK_MIN, LEAD_MARK_MAX)) {
         if (IN(space, LEAD_SPACE_MIN, LEAD_SPACE_MAX))
@@ -115,11 +127,18 @@ ISR(PCINT_VECT)
 /* --- debug trace (ATmega328P only) ---------------------------------------------------- */
 
 #if defined(DEBUG) && defined(__AVR_ATmega328P__)
-static void uart_putc(char c)
+static void uart_raw(char c)
 {
     while (!(UCSR0A & _BV(UDRE0)))
         ;
     UDR0 = (uint8_t)c;
+}
+
+static void uart_putc(char c)       /* terminals such as tio expect CR LF */
+{
+    if (c == '\n')
+        uart_raw('\r');
+    uart_raw(c);
 }
 
 static void uart_hex(uint8_t v)
@@ -140,6 +159,48 @@ static void debug_init(void)
     UCSR0A = _BV(U2X0);
     UBRR0 = (uint16_t)(F_CPU / 8UL / 115200UL - 1);  /* 16 -> 117.6 kbaud, 2 % off */
     UCSR0B = _BV(TXEN0);
+}
+
+static void uart_dec(uint16_t v)
+{
+    char buf[6];
+    uint8_t i = 0;
+    do {
+        buf[i++] = (char)('0' + v % 10);
+        v /= 10;
+    } while (v);
+    while (i)
+        uart_putc(buf[--i]);
+}
+
+/* ticks -> microseconds, for the trace only */
+#define TICKS_TO_US(t) ((uint16_t)((uint32_t)(t) * 1000000UL / TICKS_PER_SEC))
+
+static void debug_poll(void)
+{
+    static uint16_t last_status;
+    uint16_t now = now_ovf();
+
+    if ((uint16_t)(now - last_status) >= MS_TO_OVF(1000)) {   /* live status line */
+        last_status = now;
+        uart_str("pin=");
+        uart_putc((IR_PIN & _BV(IR_BIT)) ? '1' : '0');
+        uart_str(" edges=");
+        uart_dec(dbg_edges);
+        uart_putc('\n');
+    }
+    if (dbg_n >= DBG_RAW) {             /* raw trace: mark,space pairs in us, oldest first */
+        uint8_t i;
+        uart_str("raw");
+        for (i = 0; i < DBG_RAW; i += 2) {
+            uart_putc(' ');
+            uart_dec(TICKS_TO_US(dbg_raw[i]));
+            uart_putc(',');
+            uart_dec(TICKS_TO_US(dbg_raw[i + 1]));
+        }
+        uart_putc('\n');
+        dbg_n = 0;
+    }
 }
 
 static void debug_code(uint16_t addr, uint8_t cmd)
@@ -163,32 +224,30 @@ static void debug_state(const char *tag, uint8_t cur, uint8_t target)
 }
 #else
 #define debug_init()
+#define debug_poll()            ((void)0)
 #define debug_code(a, c)        ((void)0)
 #define debug_state(t, c, g)    ((void)0)
 #endif
 
 /* --- switch state --------------------------------------------------------------------- */
 
-/* 1..3 when exactly one LED is on, 0 otherwise */
+/* INPUT_KPN or INPUT_GOOGLE when exactly one sensed LED is on, 0 otherwise */
 static uint8_t read_input(void)
 {
-    uint8_t v = (uint8_t)((LED_PIN >> LED_SHIFT) & 7);
+    uint8_t v = (uint8_t)((LED_PIN >> LED_SHIFT) & 3);
 #if LED_ACTIVE_LOW
-    v = (uint8_t)(~v & 7);
+    v = (uint8_t)(~v & 3);
 #endif
-    if (v == 1) return 1;
-    if (v == 2) return 2;
-    if (v == 4) return 3;
-    return 0;
+    return v == 3 ? 0 : v;
 }
 
+/* The switch blanks all LEDs briefly after a press: keep sampling until one is lit, or give
+ * up after RESAMPLE_MAX tries. */
 static uint8_t read_input_settled(void)
 {
-    uint8_t v = read_input();
-    if (!v) {
+    uint8_t v, tries = RESAMPLE_MAX;
+    while (!(v = read_input()) && --tries)
         delay_ovf(MS_TO_OVF(RESAMPLE_MS));
-        v = read_input();
-    }
     return v;
 }
 
@@ -200,8 +259,14 @@ int main(void)
 
     hal_init();
     debug_init();
+#ifdef DEBUG
+    uart_str("boot pin=");
+    uart_putc((IR_PIN & _BV(IR_BIT)) ? '1' : '0');
+    uart_putc('\n');
+#endif
 
     for (;;) {
+        debug_poll();
         if (!ir_ready)
             continue;
         cli();
