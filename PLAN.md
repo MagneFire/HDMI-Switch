@@ -32,15 +32,17 @@ Constraint: HDMI-CEC stays **off** on the Google TV Streamer. With CEC on it put
 | HDMI 5 V rail / 4.2 V LED rail | 4.2 V with a source attached, **0 V with no source** (2026-10-18) | the switch has no supply of its own: the 4.2 V is the sources' HDMI +5 V after the ORing diodes and a drop. The ATtiny runs only while a source is plugged in and powered, which is fine: nothing to switch otherwise |
 | LDO output | ~3.45 V (inferred from the button pull-up) | 2026-10-18 |
 | Button idle / pressed | 3.45 V / GND | one side on GND, the other pulled up: open-drain press is right |
-| LED node high / low | right leg (anode, driven): 4.2 V lit / 0 V not lit; left leg (cathode): 1.7 V lit / 0 V | active-high on the anode side. Sense the right leg through 10 kΩ; `LED_ACTIVE_LOW 0`. 4.2 V is above a 3.3 V ATtiny's VCC: the 10 kΩ keeps the clamp current under 0.1 mA |
+| LED node high / low | right leg (anode, driven): 4.2 V lit / 0 V not lit; left leg (cathode): 1.7 V lit / 0 V | active-high on the anode side. Sense the right leg directly; `LED_ACTIVE_LOW 0`. The 10 kΩ was for a 3.3 V ATtiny (clamp current); with the chip on the same 4.2 V rail it is not needed. The Nano prototype ran without it |
 | LEDs multiplexed? |  | not yet checked |
 | Auto-switch on source power-on? | yes: with one source attached it always selects that one | a press blanks all LEDs, then it re-selects: measured 2026-10-18 with the probe, 145 ms for a finger press, 174 ms for the firmware's 100 ms open-drain press (LED back 74 ms after release). `SETTLE_MS 300` covers it; the 1 s re-sample loop is margin |
 
 Notes from the measurements:
 
 - Run the ATtiny13A and the TSOP from the 4.2 V rail (both are rated to 5.5 V). The LED
-  senses then read a 4.2 V node with a 4.2 V supply: plain digital inputs, the 10 kΩ series
-  resistors are optional protection. The button stays open-drain (input idle, output low to
+  senses then read a 4.2 V node with a 4.2 V supply: plain digital inputs, wired directly
+  (tested so on the Nano). Only if the chip is to be reprogrammed in-circuit, put 1 kΩ in
+  each sense line: PB0/PB1 are also the ISP lines and the programmer drives them against the
+  switch's LED driver. The button stays open-drain (input idle, output low to
   press), so the switch's own 3.45 V pull-up is never driven high.
 - The 4.2 V comes from the sources' HDMI 5 V (measured 0 V with nothing plugged in). It drops
   when both sources are off, which is harmless (no EEPROM, nothing to switch). The chip
@@ -85,7 +87,7 @@ Done when: a trigger key on the remote reliably lands the switch on the right in
 | --- | --- | --- |
 | IR receiver OUT | D2 | pin-change or external interrupt |
 | Switch button | D3 | open-drain: INPUT idle, OUTPUT LOW to press; 1 kΩ series |
-| KPN input's LED sense | D4 | 10 kΩ series, on the LED's right leg (anode, 4.2 V lit / 0 V off) |
+| KPN input's LED sense | D4 | direct, on the LED's right leg (anode, 4.2 V lit / 0 V off) |
 | Google input's LED sense | D5 | same |
 | GND | GND | common with the switch board |
 
@@ -178,7 +180,7 @@ Done when: the switch is closed up, sits behind the TV, and a week of normal use
 | TSOP38238 (38 kHz IR receiver) | 2 | one for the Uno, one in the final build |
 | 100 Ω resistor, 4.7 µF cap | 1 each | TSOP supply filter |
 | 100 nF ceramic (0603 or 0805) | 2 | decoupling |
-| 1 kΩ, 10 kΩ resistors | few | button series, LED senses |
+| 1 kΩ resistors | few | button series; LED senses only for in-circuit programming |
 | Arduino ISP (USBtiny, 6-pin ICSP) | 1 | on hand |
 | Schottky diode (1N5819) | 1 | only if USB-powered |
 | 30 AWG wire-wrap wire | — |  |
