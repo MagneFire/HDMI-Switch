@@ -27,7 +27,7 @@ Constraint: HDMI-CEC stays **off** on the Google TV Streamer. With CEC on it put
 
 | Measurement | Value | Notes |
 | --- | --- | --- |
-| HDMI 5 V rail |  | not yet measured |
+| HDMI 5 V rail |  | not yet measured; the 4.2 V LED rail may be this rail after the ORing diodes |
 | LDO output | ~3.45 V (inferred from the button pull-up) | 2026-10-18 |
 | Button idle / pressed | 3.45 V / GND | one side on GND, the other pulled up: open-drain press is right |
 | LED node high / low | right leg (anode, driven): 4.2 V lit / 0 V not lit; left leg (cathode): 1.7 V lit / 0 V | active-high on the anode side. Sense the right leg through 10 kΩ; `LED_ACTIVE_LOW 0`. 4.2 V is above a 3.3 V ATtiny's VCC: the 10 kΩ keeps the clamp current under 0.1 mA |
@@ -36,8 +36,13 @@ Constraint: HDMI-CEC stays **off** on the Google TV Streamer. With CEC on it put
 
 Notes from the measurements:
 
-- The MCU can run from the ~3.45 V rail. The LED senses then see 4.2 V, above VCC: keep the
-  10 kΩ series resistor (clamp current < 0.1 mA) or use a 10 k / 22 k divider.
+- Run the ATtiny13A and the TSOP from the 4.2 V rail (both are rated to 5.5 V). The LED
+  senses then read a 4.2 V node with a 4.2 V supply: plain digital inputs, the 10 kΩ series
+  resistors are optional protection. The button stays open-drain (input idle, output low to
+  press), so the switch's own 3.45 V pull-up is never driven high.
+- Still to check: where the 4.2 V comes from. If it is the sources' HDMI 5 V after the ORing
+  diodes it drops when both sources are off, which is harmless (no EEPROM, nothing to switch).
+  Budget: ~5 mA ATtiny at 9.6 MHz + < 2 mA TSOP.
 - With only one source attached, the toggle cannot leave that input; test with both sources on.
 
 ### Board notes (from the photo)
@@ -151,7 +156,7 @@ Program on the breakout during bring-up with nothing else connected. Once the ch
 Done when: the switch is closed up, sits behind the TV, and a week of normal use has no misfires.
 
 - [ ] Mount the SOIC-8 ATtiny13A dead-bug or on a sliver of SOIC breakout glued to a free spot on the switch PCB; 100 nF right at its VCC/GND. The TSOP38238 and its RC filter fit beside it.
-- [ ] Power: wire the chip's VCC to the switch's LDO output (3.3 V). If the LDO is missing or the IC runs at 5 V, run the 13A at 5 V and keep the open-drain press and series resistors.
+- [ ] Power: wire the chip's VCC and the TSOP to the switch's 4.2 V rail (the LED anode rail), 100 nF at the chip. Open-drain press and series resistors as in the prototype.
 - [ ] If using USB power: a short cable from the TV's USB port to the switch's 5 V rail. Add a Schottky diode so the TV's 5 V and the sources' 5 V don't fight.
 - [ ] Solder the button line to the switch pad; solder LED senses to the swinging side of each LED. Use 30 AWG wire-wrap wire.
 - [ ] IR receiver: it must see the remote. The switch housing is closed, so either place the TSOP behind the existing LED window if IR passes through it (test first), or put it on 30 cm of twisted wire out through the HDMI-side opening and stick it to the TV bezel.
