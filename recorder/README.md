@@ -24,33 +24,22 @@ Two recorders are available:
 1. Arduino IDE: File → Examples → IRremote → ReceiveDump. Board: Arduino Nano, processor
    ATmega328P (choose "Old Bootloader" if upload fails). Port: `/dev/cu.wchusbserial*`.
 2. Serial Monitor at 115200 baud.
-3. Program the C3's TV section to the candidate code (`docs/tv-codes.md`).
+3. Program the remote's TV section to the candidate code (worked example: `docs/example-setup.md`).
 4. Press each of the five TV keys three times. Note protocol, address, command.
 5. Hold a key for 2 s. ReceiveDump prints too slowly to show repeats, so open File → Examples →
    IRremote → ReceiveDemo for this step: it prints a compact line per frame and reports
    whether holds arrive as NEC repeat frames or as full frames (NEC2 / SamsungLG).
-6. Press a few KPN box keys (OK, channel up, menu) and note the box's own protocol and address.
+6. Press a few keys of the other source's own remote (OK, channel up, menu) and note its
+   protocol and address: with the same protocol it can select that input (`INPUT_A_ADDR`).
 
 Keep the code when every TV key is NEC (or Samsung) with one shared address, five distinct
-commands, and the Sony shows no reaction. Otherwise try the next code.
+commands, and the TV shows no reaction. Otherwise try the next code. With the TV's own
+code instead, use a double tap of a net-neutral key such as Mute (`DOUBLE_TAP_MS`).
 
 ## Results
 
-Recorded 2026-10-18 with the probe build (`DEBUG=1`), C3 TV section on Sony code 534.
-Already in `firmware/config.h` (`TOGGLE_ADDR 1`, `TOGGLE_CMD 20`).
-
-| Key | Protocol | Address | Command | Repeat frame? | Action |
-| --- | --- | --- | --- | --- | --- |
-| Mute | SIRC 12-bit | 1 | 20 (0x14) | full frames, 45 ms apart, 3 per press | double tap = toggle KPN ⇄ Google |
-| Source | SIRC 12-bit | 1 | 37 (0x25) | same | none (TV acts on it) |
-| TV power | SIRC 12-bit | 1 | 21 (0x15) | same | none (TV acts on it) |
-| Vol+ | SIRC 12-bit | 1 | 18 (0x12) | same | ignore |
-| Vol− | SIRC 12-bit | 1 | 19 (0x13) | same | ignore |
-| Box OK |  |  |  |  | → KPN, optional, not recorded |
-| Box channel up |  |  |  |  | → KPN, optional, not recorded |
-
-Measured timing: header 2.39 ms mark / 0.6 ms space, bits 0.6 ms (0) and 1.2 ms (1) marks
-with 0.6 ms spaces, frame gap about 8.5 ms after a 1-heavy frame.
+The recorded keys for the author's setup, and the `config.h` values they produced, are in
+`docs/example-setup.md`.
 
 Address format: IRremote prints an 8-bit address (`0x4`) when the second byte is the inverse
 of the first (standard NEC), and a 16-bit one (`0x6B86`) otherwise (extended NEC, Samsung).

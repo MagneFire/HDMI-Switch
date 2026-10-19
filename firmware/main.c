@@ -278,7 +278,7 @@ static void debug_poll(void)
         uart_str(" edges=");
         uart_dec(dbg_edges);
         uart_str(" leds=");
-        uart_putc('0' + ((LED_PIN >> LED_SHIFT) & 3));   /* bit0 KPN, bit1 Google */
+        uart_putc('0' + ((LED_PIN >> LED_SHIFT) & 3));   /* bit0 input A, bit1 input B */
         uart_putc('\n');
     }
     debug_leds();
@@ -365,7 +365,7 @@ static void debug_state(const char *tag, uint8_t cur, uint8_t target)
 
 /* --- switch state --------------------------------------------------------------------- */
 
-/* INPUT_KPN or INPUT_GOOGLE when exactly one sensed LED is on, 0 otherwise */
+/* INPUT_A or INPUT_B when exactly one sensed LED is on, 0 otherwise */
 static uint8_t read_input(void)
 {
     uint8_t v = (uint8_t)((LED_PIN >> LED_SHIFT) & 3);
@@ -436,11 +436,11 @@ int main(void)
             debug_tag('2');
 #endif
             cur = read_input_settled();
-            target = (cur == INPUT_KPN) ? INPUT_GOOGLE : INPUT_KPN;
-#ifdef BOX_ADDR
-        } else if (addr == BOX_ADDR) {
+            target = (cur == INPUT_A) ? INPUT_B : INPUT_A;
+#ifdef INPUT_A_ADDR
+        } else if (addr == INPUT_A_ADDR) {
             cur = read_input_settled();
-            target = INPUT_KPN;
+            target = INPUT_A;
 #endif
         } else {
             debug_tag('x');
